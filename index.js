@@ -49,7 +49,6 @@ const httpServer = http.createServer((req, res) => {
     const trojanURL = `trojan://${UUID}@cdns.doon.eu.org:443?security=tls&sni=${DOMAIN}&fp=chrome&type=ws&host=${DOMAIN}&path=%2F${WSPATH}#${namePart}`;
     const subscription = vlessURL + '\n' + trojanURL;
     const base64Content = Buffer.from(subscription).toString('base64');
-    
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end(base64Content + '\n');
   } else {
