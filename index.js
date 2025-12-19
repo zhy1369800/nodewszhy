@@ -12,8 +12,8 @@ const UUID = process.env.UUID || '5efabea4-f6d4-91fd-b8f0-17e004c89c60'; // 运�
 const NEZHA_SERVER = process.env.NEZHA_SERVER || '';       // 哪吒v1填写形式：nz.abc.com:8008   哪吒v0填写形式：nz.abc.com
 const NEZHA_PORT = process.env.NEZHA_PORT || '';           // 哪吒v1没有此变量，v0的agent端口为{443,8443,2096,2087,2083,2053}其中之一时开启tls
 const NEZHA_KEY = process.env.NEZHA_KEY || '';             // v1的NZ_CLIENT_SECRET或v0的agent端口                
-const DOMAIN = process.env.DOMAIN || '1234.abc.com';       // 填写项目域名或已反代的域名，不带前缀，建议填已反代的域名
-const AUTO_ACCESS = process.env.AUTO_ACCESS || true;       // 是否开启自动访问保活,false为关闭,true为开启,需同时填写DOMAIN变量
+const DOMAIN = process.env.DOMAIN || '1234.abc.com';       // 填写项目域名或已反代的域名，不带前缀，例如：abc-domain.com
+const AUTO_ACCESS = process.env.AUTO_ACCESS || false;      // 是否开启自动访问保活,false为关闭,true为开启,需同时填写DOMAIN变量
 const WSPATH = process.env.WSPATH || UUID.slice(0, 8);     // 节点路径，默认获取uuid前8位
 const SUB_PATH = process.env.SUB_PATH || 'sub';            // 获取节点的订阅路径
 const NAME = process.env.NAME || 'Hug';                    // 节点名称
@@ -22,9 +22,9 @@ const PORT = process.env.PORT || 7860;                     // http和ws服务端
 let ISP = '';
 const GetISP = async () => {
   try {
-    const res = await axios.get('https://speed.cloudflare.com/meta');
+    const res = await axios.get('https://api.ip.sb/geoip');
     const data = res.data;
-    ISP = `${data.country}-${data.asOrganization}`.replace(/ /g, '_');
+    ISP = `${data.country_code}-${data.isp}`.replace(/ /g, '_');
   } catch (e) {
     ISP = 'Unknown';
   }
@@ -45,10 +45,12 @@ const httpServer = http.createServer((req, res) => {
     });
     return;
   } else if (req.url === `/${SUB_PATH}`) {
-    const vlessURL = `vless://${UUID}@${DOMAIN}:443?encryption=none&security=tls&sni=${DOMAIN}&fp=chrome&type=ws&host=${DOMAIN}&path=%2F${WSPATH}#${NAME}-${ISP}`;
-    const trojanURL = `trojan://${UUID}@${DOMAIN}:443?security=tls&sni=${DOMAIN}&fp=chrome&type=ws&host=${DOMAIN}&path=%2F${WSPATH}#${NAME}-${ISP}`;
+    const namePart = NAME ? `${NAME}-${ISP}` : ISP;
+    const vlessURL = `vless://${UUID}@${DOMAIN}:443?encryption=none&security=tls&sni=${DOMAIN}&fp=chrome&type=ws&host=${DOMAIN}&path=%2F${WSPATH}#${namePart}`;
+    const trojanURL = `trojan://${UUID}@${DOMAIN}:443?security=tls&sni=${DOMAIN}&fp=chrome&type=ws&host=${DOMAIN}&path=%2F${WSPATH}#${namePart}`;
     const subscription = vlessURL + '\n' + trojanURL;
     const base64Content = Buffer.from(subscription).toString('base64');
+    
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end(base64Content + '\n');
   } else {
@@ -107,6 +109,7 @@ function handleVlessConnection(ws, msg) {
   const [VERSION] = msg;
   const id = msg.slice(1, 17);
   if (!id.every((v, i) => v == parseInt(uuid.substr(i * 2, 2), 16))) return false;
+  
   let i = msg.slice(17, 18).readUInt8() + 19;
   const port = msg.slice(i, i += 2).readUInt16BE(0);
   const ATYP = msg.slice(i, i += 1).readUInt8();
